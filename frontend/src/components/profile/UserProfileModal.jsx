@@ -1,11 +1,13 @@
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { X, LogOut, Mail, Calendar, FileText, CheckCircle2 } from 'lucide-react';
+import { X, LogOut, Calendar, CheckCircle2 } from 'lucide-react';
 
 export const UserProfileModal = () => {
   const { user, profileModalOpen, closeProfileModal, logout } = useAuth();
 
   if (!profileModalOpen || !user) return null;
+
+  const userInitial = user.name ? user.name.charAt(0).toUpperCase() : 'U';
 
   return (
     <div className="modal-overlay" onClick={closeProfileModal}>
@@ -30,22 +32,28 @@ export const UserProfileModal = () => {
 
         {/* Profile Header */}
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-          <img
-            src={user.avatar}
-            alt={user.name}
+          <div
             style={{
               width: '64px',
               height: '64px',
-              borderRadius: 'var(--rounded-full)',
-              border: '2px solid var(--hairline)',
+              borderRadius: '50%',
+              backgroundColor: 'var(--primary)',
+              color: 'var(--on-primary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '1.5rem',
+              fontWeight: 700,
               margin: '0 auto 12px'
             }}
-          />
+          >
+            {userInitial}
+          </div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>{user.name}</h2>
-          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{user.email}</span>
+          <span className="small-text">{user.email}</span>
         </div>
 
-        {/* User Stats Grid per Assignment Screen 4 Spec */}
+        {/* User Stats Grid */}
         <div
           className="card-soft"
           style={{
@@ -85,7 +93,7 @@ export const UserProfileModal = () => {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: 'var(--text-muted)' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <CheckCircle2 size={15} color="var(--ink)" /> Account Status
+              <CheckCircle2 size={15} /> Account Status
             </span>
             <span style={{ fontWeight: 600, color: 'var(--ink)' }}>Active</span>
           </div>

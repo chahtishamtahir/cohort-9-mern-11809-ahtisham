@@ -1,14 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import {
-  X,
-  Mail,
-  Lock,
-  User,
-  Sparkles,
-  ArrowRight,
-  AlertCircle
-} from 'lucide-react';
+import { X, AlertCircle } from 'lucide-react';
 
 export const AuthModal = () => {
   const {
@@ -17,8 +9,7 @@ export const AuthModal = () => {
     setAuthModalMode,
     closeAuthModal,
     login,
-    signup,
-    demoLogin
+    signup
   } = useAuth();
 
   const [name, setName] = useState('');
@@ -50,10 +41,6 @@ export const AuthModal = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleDemoAccess = () => {
-    demoLogin();
   };
 
   return (
@@ -93,40 +80,11 @@ export const AuthModal = () => {
           <h2 style={{ fontSize: '1.35rem', fontWeight: 700 }}>
             {authModalMode === 'signup' ? 'Create an account.' : 'Log in to NotionFlow.'}
           </h2>
-          <p className="body-sm" style={{ marginTop: '4px' }}>
+          <p className="small-text" style={{ marginTop: '4px' }}>
             {authModalMode === 'signup'
               ? 'Enter your details to start taking notes.'
               : 'Enter your email and password to access your notes.'}
           </p>
-        </div>
-
-        {/* Demo Account Quick Access */}
-        <button
-          type="button"
-          onClick={handleDemoAccess}
-          className="btn btn-pill-soft"
-          style={{
-            width: '100%',
-            marginBottom: '16px',
-            fontSize: '0.88rem'
-          }}
-        >
-          <Sparkles size={14} /> Quick Demo Login (1-Click)
-        </button>
-
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            margin: '14px 0',
-            color: 'var(--text-faint)',
-            fontSize: '0.78rem'
-          }}
-        >
-          <div style={{ flex: 1, height: '1px', background: 'var(--hairline)' }} />
-          <span>OR CONTINUE WITH EMAIL</span>
-          <div style={{ flex: 1, height: '1px', background: 'var(--hairline)' }} />
         </div>
 
         {/* Error Alert */}
@@ -217,7 +175,7 @@ export const AuthModal = () => {
               Already have an account?{' '}
               <button
                 type="button"
-                onClick={() => setAuthModalMode('login')}
+                onClick={() => { setAuthModalMode('login'); setError(''); }}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -235,7 +193,7 @@ export const AuthModal = () => {
               Don't have an account?{' '}
               <button
                 type="button"
-                onClick={() => setAuthModalMode('signup')}
+                onClick={() => { setAuthModalMode('signup'); setError(''); }}
                 style={{
                   background: 'none',
                   border: 'none',

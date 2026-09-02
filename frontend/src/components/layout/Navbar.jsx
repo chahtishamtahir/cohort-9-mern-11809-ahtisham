@@ -14,6 +14,8 @@ export const Navbar = ({ theme, toggleTheme }) => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  const userInitial = user?.name ? user.name.charAt(0).toUpperCase() : 'U';
+
   return (
     <header className="nav-pill-wrapper">
       <div className="nav-pill">
@@ -54,11 +56,22 @@ export const Navbar = ({ theme, toggleTheme }) => {
                 className="btn btn-soft btn-sm"
                 style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
               >
-                <img
-                  src={user.avatar}
-                  alt={user.name}
-                  style={{ width: '18px', height: '18px', borderRadius: '50%' }}
-                />
+                <div
+                  style={{
+                    width: '20px',
+                    height: '20px',
+                    borderRadius: '50%',
+                    backgroundColor: 'var(--primary)',
+                    color: 'var(--on-primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '0.72rem',
+                    fontWeight: 700
+                  }}
+                >
+                  {userInitial}
+                </div>
                 <span style={{ fontSize: '0.84rem' }}>{user.name}</span>
               </button>
               <button

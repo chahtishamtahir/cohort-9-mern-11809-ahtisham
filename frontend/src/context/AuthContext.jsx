@@ -25,7 +25,6 @@ export const AuthProvider = ({ children }) => {
   }, [user]);
 
   const login = async (email, password) => {
-    // Client-side authentication simulation with hooks for backend REST API
     if (!email || !password) {
       throw new Error('Please provide email and password.');
     }
@@ -33,8 +32,6 @@ export const AuthProvider = ({ children }) => {
       id: 'usr_' + Date.now(),
       name: email.split('@')[0],
       email: email,
-      token: 'jwt_mock_token_' + Math.random().toString(36).substring(2),
-      avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${email}`,
       createdAt: new Date().toISOString(),
       notesCount: 4
     };
@@ -51,29 +48,12 @@ export const AuthProvider = ({ children }) => {
       id: 'usr_' + Date.now(),
       name: name,
       email: email,
-      token: 'jwt_mock_token_' + Math.random().toString(36).substring(2),
-      avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${email}`,
       createdAt: new Date().toISOString(),
       notesCount: 1
     };
     setUser(mockUser);
     setAuthModalOpen(false);
     return mockUser;
-  };
-
-  const demoLogin = () => {
-    const demoUser = {
-      id: 'usr_demo_101',
-      name: 'Ahtisham Tahir (Demo)',
-      email: 'ahtisham@notionflow.dev',
-      token: 'jwt_mock_demo_token',
-      avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=Ahtisham',
-      createdAt: '2026-09-01T00:00:00.000Z',
-      notesCount: 6
-    };
-    setUser(demoUser);
-    setAuthModalOpen(false);
-    return demoUser;
   };
 
   const logout = () => {
@@ -105,7 +85,6 @@ export const AuthProvider = ({ children }) => {
         isAuthenticated: !!user,
         login,
         signup,
-        demoLogin,
         logout,
         authModalOpen,
         authModalMode,
