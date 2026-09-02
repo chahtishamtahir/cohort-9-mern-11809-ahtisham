@@ -1,59 +1,27 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(() => {
-    try {
-      const savedUser = localStorage.getItem('notionflow_user');
-      return savedUser ? JSON.parse(savedUser) : null;
-    } catch {
-      return null;
-    }
-  });
-
+  const [user, setUser] = useState(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState('signup'); // 'login' | 'signup'
   const [profileModalOpen, setProfileModalOpen] = useState(false);
-
-  useEffect(() => {
-    if (user) {
-      localStorage.setItem('notionflow_user', JSON.stringify(user));
-    } else {
-      localStorage.removeItem('notionflow_user');
-    }
-  }, [user]);
 
   const login = async (email, password) => {
     if (!email || !password) {
       throw new Error('Please provide email and password.');
     }
-    const mockUser = {
-      id: 'usr_' + Date.now(),
-      name: email.split('@')[0],
-      email: email,
-      createdAt: new Date().toISOString(),
-      notesCount: 4
-    };
-    setUser(mockUser);
+    // Real backend authentication will be connected in the backend auth phase
     setAuthModalOpen(false);
-    return mockUser;
   };
 
   const signup = async (name, email, password) => {
     if (!name || !email || !password) {
       throw new Error('Please fill in all fields.');
     }
-    const mockUser = {
-      id: 'usr_' + Date.now(),
-      name: name,
-      email: email,
-      createdAt: new Date().toISOString(),
-      notesCount: 1
-    };
-    setUser(mockUser);
+    // Real backend registration will be connected in the backend auth phase
     setAuthModalOpen(false);
-    return mockUser;
   };
 
   const logout = () => {
