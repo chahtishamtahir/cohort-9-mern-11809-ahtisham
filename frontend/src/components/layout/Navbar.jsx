@@ -1,18 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Sun, Moon, LogOut } from 'lucide-react';
 
 export const Navbar = ({ theme, toggleTheme }) => {
   const { user, isAuthenticated, openAuthModal, openProfileModal, logout } = useAuth();
-  const [scrolled, setScrolled] = useState(false);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 15);
-    };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
   const userInitial = user?.name ? user.name.charAt(0).toUpperCase() : 'U';
 

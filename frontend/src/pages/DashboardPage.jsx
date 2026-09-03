@@ -23,7 +23,7 @@ const CATEGORIES = ['All', 'General', 'Work', 'Personal', 'Ideas', 'Study', 'Mee
  * note creation, import/export, and rich editing.
  */
 export const DashboardPage = () => {
-  const { user, openProfileModal } = useAuth();
+  const { user } = useAuth();
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -38,7 +38,7 @@ export const DashboardPage = () => {
   const fileInputRef = useRef(null);
 
   // Fetch notes from backend
-  const fetchNotes = async () => {
+  const fetchNotes = React.useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -51,7 +51,7 @@ export const DashboardPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchQuery, selectedCategory]);
 
   // Re-fetch when search or category changes (with debounce on search)
   useEffect(() => {
@@ -59,7 +59,7 @@ export const DashboardPage = () => {
       fetchNotes();
     }, 250);
     return () => clearTimeout(timer);
-  }, [searchQuery, selectedCategory]);
+  }, [fetchNotes]);
 
   // Open editor to create new note
   const handleCreateNew = () => {
