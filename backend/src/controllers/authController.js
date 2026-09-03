@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const db = require('../config/db');
+const User = require('../models/User');
 const logger = require('../config/logger');
 const { JWT_SECRET } = require('../middleware/auth');
 
@@ -23,7 +23,7 @@ async function signup(req, res, next) {
     const trimmedEmail = email.trim().toLowerCase();
 
     // Check if user already exists
-    const existingUser = db.get('SELECT id FROM users WHERE email = ?', [trimmedEmail]);
+    const existingUser = await User.findOne({ email: trimmedEmail });
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -35,28 +35,27 @@ async function signup(req, res, next) {
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-    // Insert user into database
-    const result = db.run(
-      'INSERT INTO users (name, email, password) VALUES (?, ?, ?)',
-      [name.trim(), trimmedEmail, hashedPassword]
-    );
-
-    const userId = Number(result.lastInsertRowid);
+    // Create user in MongoDB
+    const user = await User.create({
+      name: name.trim(),
+      email: trimmedEmail,
+      password: hashedPassword
+    });
 
     // Generate JWT token
-    const token = jwt.sign({ id: userId, email: trimmedEmail }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ id: user._id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
 
-    // Log user activity
-    logger.info({ userId, email: trimmedEmail }, 'New user successfully registered');
+    // Log user registration activity
+    logger.info({ userId: user._id, email: user.email }, 'New user successfully registered in MongoDB');
 
     return res.status(201).json({
       success: true,
       message: 'Account created successfully.',
       token,
       user: {
-        id: userId,
-        name: name.trim(),
-        email: trimmedEmail
+        id: user._id,
+        name: user.name,
+        email: user.email
       }
     });
   } catch (error) {
@@ -82,7 +81,7 @@ async function login(req, res, next) {
     const trimmedEmail = email.trim().toLowerCase();
 
     // Find user by email
-    const user = db.get('SELECT * FROM users WHERE email = ?', [trimmedEmail]);
+    const user = await User.findOne({ email: trimmedEmail });
     if (!user) {
       logger.warn({ email: trimmedEmail }, 'Login failed: email not found');
       return res.status(401).json({
@@ -94,7 +93,7 @@ async function login(req, res, next) {
     // Compare password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      logger.warn({ userId: user.id, email: trimmedEmail }, 'Login failed: incorrect password');
+      logger.warn({ userId: user._id, email: trimmedEmail }, 'Login failed: incorrect password');
       return res.status(401).json({
         success: false,
         message: 'Invalid email or password.'
@@ -102,17 +101,17 @@ async function login(req, res, next) {
     }
 
     // Generate JWT token
-    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ id: user._id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
 
     // Log successful user login
-    logger.info({ userId: user.id, email: user.email }, 'User logged in successfully');
+    logger.info({ userId: user._id, email: user.email }, 'User logged in successfully');
 
     return res.status(200).json({
       success: true,
       message: 'Logged in successfully.',
       token,
       user: {
-        id: user.id,
+        id: user._id,
         name: user.name,
         email: user.email,
         created_at: user.created_at

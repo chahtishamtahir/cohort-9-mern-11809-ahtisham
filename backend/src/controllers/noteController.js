@@ -1,38 +1,30 @@
-const db = require('../config/db');
+const Note = require('../models/Note');
 const logger = require('../config/logger');
 
 /**
- * Get all notes for the authenticated user
+ * Get all notes for authenticated user
  * Supports search query (?search=...) and category filter (?category=...)
  * GET /api/notes
  */
 async function getNotes(req, res, next) {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
     const { search, category } = req.query;
 
-    let sql = 'SELECT * FROM notes WHERE user_id = ?';
-    const params = [userId];
+    const filter = { user: userId };
 
-    // Filter by category if provided and not 'All'
     if (category && category !== 'All') {
-      sql += ' AND category = ?';
-      params.push(category);
+      filter.category = category;
     }
 
-    // Search in title and content
     if (search && search.trim() !== '') {
-      sql += ' AND (title LIKE ? OR content LIKE ?)';
-      const searchTerm = `%${search.trim()}%`;
-      params.push(searchTerm, searchTerm);
+      const searchRegex = new RegExp(search.trim(), 'i');
+      filter.$or = [{ title: searchRegex }, { content: searchRegex }];
     }
 
-    // Order: pinned notes first, then latest updated
-    sql += ' ORDER BY is_pinned DESC, updated_at DESC';
+    const notes = await Note.find(filter).sort({ is_pinned: -1, updated_at: -1 });
 
-    const notes = db.all(sql, params);
-
-    logger.info({ userId, count: notes.length, search, category }, 'Fetched user notes');
+    logger.info({ userId, count: notes.length, search, category }, 'Fetched user notes from MongoDB');
 
     return res.status(200).json({
       success: true,
@@ -50,10 +42,10 @@ async function getNotes(req, res, next) {
  */
 async function getNoteById(req, res, next) {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
     const noteId = req.params.id;
 
-    const note = db.get('SELECT * FROM notes WHERE id = ? AND user_id = ?', [noteId, userId]);
+    const note = await Note.findOne({ _id: noteId, user: userId });
 
     if (!note) {
       return res.status(404).json({
@@ -77,7 +69,7 @@ async function getNoteById(req, res, next) {
  */
 async function createNote(req, res, next) {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
     const { title, content, category = 'General', isPinned = false } = req.body;
 
     if (!title || title.trim() === '') {
@@ -87,21 +79,20 @@ async function createNote(req, res, next) {
       });
     }
 
-    const pinnedValue = isPinned ? 1 : 0;
-    const result = db.run(
-      'INSERT INTO notes (user_id, title, content, category, is_pinned) VALUES (?, ?, ?, ?, ?)',
-      [userId, title.trim(), content || '', category, pinnedValue]
-    );
+    const note = await Note.create({
+      user: userId,
+      title: title.trim(),
+      content: content || '',
+      category: category || 'General',
+      is_pinned: Boolean(isPinned)
+    });
 
-    const newNoteId = Number(result.lastInsertRowid);
-    const createdNote = db.get('SELECT * FROM notes WHERE id = ?', [newNoteId]);
-
-    logger.info({ userId, noteId: newNoteId, title }, 'Created note successfully');
+    logger.info({ userId, noteId: note._id, title }, 'Created note successfully in MongoDB');
 
     return res.status(201).json({
       success: true,
       message: 'Note created successfully.',
-      note: createdNote
+      note
     });
   } catch (error) {
     next(error);
@@ -114,34 +105,30 @@ async function createNote(req, res, next) {
  */
 async function updateNote(req, res, next) {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
     const noteId = req.params.id;
     const { title, content, category, isPinned } = req.body;
 
-    // Verify note ownership
-    const existing = db.get('SELECT * FROM notes WHERE id = ? AND user_id = ?', [noteId, userId]);
-    if (!existing) {
+    const updateFields = {};
+    if (title !== undefined) updateFields.title = title.trim();
+    if (content !== undefined) updateFields.content = content;
+    if (category !== undefined) updateFields.category = category;
+    if (isPinned !== undefined) updateFields.is_pinned = Boolean(isPinned);
+
+    const updatedNote = await Note.findOneAndUpdate(
+      { _id: noteId, user: userId },
+      { $set: updateFields },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedNote) {
       return res.status(404).json({
         success: false,
         message: 'Note not found or unauthorized.'
       });
     }
 
-    const updatedTitle = title !== undefined ? title.trim() : existing.title;
-    const updatedContent = content !== undefined ? content : existing.content;
-    const updatedCategory = category !== undefined ? category : existing.category;
-    const updatedPinned = isPinned !== undefined ? (isPinned ? 1 : 0) : existing.is_pinned;
-
-    db.run(
-      `UPDATE notes 
-       SET title = ?, content = ?, category = ?, is_pinned = ?, updated_at = CURRENT_TIMESTAMP 
-       WHERE id = ? AND user_id = ?`,
-      [updatedTitle, updatedContent, updatedCategory, updatedPinned, noteId, userId]
-    );
-
-    const updatedNote = db.get('SELECT * FROM notes WHERE id = ?', [noteId]);
-
-    logger.info({ userId, noteId, title: updatedTitle }, 'Updated note successfully');
+    logger.info({ userId, noteId, title: updatedNote.title }, 'Updated note successfully in MongoDB');
 
     return res.status(200).json({
       success: true,
@@ -159,21 +146,19 @@ async function updateNote(req, res, next) {
  */
 async function deleteNote(req, res, next) {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
     const noteId = req.params.id;
 
-    // Verify note exists and belongs to user
-    const existing = db.get('SELECT id, title FROM notes WHERE id = ? AND user_id = ?', [noteId, userId]);
-    if (!existing) {
+    const deleted = await Note.findOneAndDelete({ _id: noteId, user: userId });
+
+    if (!deleted) {
       return res.status(404).json({
         success: false,
         message: 'Note not found or unauthorized.'
       });
     }
 
-    db.run('DELETE FROM notes WHERE id = ? AND user_id = ?', [noteId, userId]);
-
-    logger.info({ userId, noteId, title: existing.title }, 'Deleted note successfully');
+    logger.info({ userId, noteId, title: deleted.title }, 'Deleted note successfully from MongoDB');
 
     return res.status(200).json({
       success: true,
@@ -185,15 +170,15 @@ async function deleteNote(req, res, next) {
 }
 
 /**
- * Export all notes for the authenticated user as JSON
+ * Export all notes for authenticated user as JSON
  * GET /api/notes/export/all
  */
 async function exportNotes(req, res, next) {
   try {
-    const userId = req.user.id;
-    const notes = db.all('SELECT title, content, category, is_pinned, created_at, updated_at FROM notes WHERE user_id = ? ORDER BY created_at DESC', [userId]);
+    const userId = req.user._id;
+    const notes = await Note.find({ user: userId }).select('title content category is_pinned created_at updated_at');
 
-    logger.info({ userId, count: notes.length }, 'Exported user notes');
+    logger.info({ userId, count: notes.length }, 'Exported user notes from MongoDB');
 
     return res.status(200).json({
       success: true,
@@ -208,12 +193,12 @@ async function exportNotes(req, res, next) {
 }
 
 /**
- * Import notes for the authenticated user
+ * Import notes for authenticated user
  * POST /api/notes/import/all
  */
 async function importNotes(req, res, next) {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
     const { notes } = req.body;
 
     if (!Array.isArray(notes) || notes.length === 0) {
@@ -223,23 +208,24 @@ async function importNotes(req, res, next) {
       });
     }
 
-    let importedCount = 0;
-    for (const item of notes) {
-      if (item && item.title) {
-        db.run(
-          'INSERT INTO notes (user_id, title, content, category, is_pinned) VALUES (?, ?, ?, ?, ?)',
-          [userId, item.title, item.content || '', item.category || 'General', item.is_pinned ? 1 : 0]
-        );
-        importedCount++;
-      }
-    }
+    const docsToInsert = notes
+      .filter((item) => item && item.title)
+      .map((item) => ({
+        user: userId,
+        title: item.title,
+        content: item.content || '',
+        category: item.category || 'General',
+        is_pinned: Boolean(item.is_pinned || item.isPinned)
+      }));
 
-    logger.info({ userId, importedCount }, 'Imported notes successfully');
+    const inserted = await Note.insertMany(docsToInsert);
+
+    logger.info({ userId, importedCount: inserted.length }, 'Imported notes successfully into MongoDB');
 
     return res.status(201).json({
       success: true,
-      message: `Successfully imported ${importedCount} notes.`,
-      importedCount
+      message: `Successfully imported ${inserted.length} notes.`,
+      importedCount: inserted.length
     });
   } catch (error) {
     next(error);

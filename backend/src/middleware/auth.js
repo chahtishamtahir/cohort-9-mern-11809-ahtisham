@@ -1,15 +1,14 @@
 const jwt = require('jsonwebtoken');
-const db = require('../config/db');
+const User = require('../models/User');
 const logger = require('../config/logger');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_key_notes_app_2026';
 
 /**
  * Authentication Middleware:
- * Extracts JWT token from the Authorization header, verifies it,
- * and attaches the authenticated user to req.user.
+ * Verifies JWT token and attaches user document to req.user
  */
-function verifyToken(req, res, next) {
+async function verifyToken(req, res, next) {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -24,8 +23,8 @@ function verifyToken(req, res, next) {
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
 
-    // Fetch user from database to confirm existence
-    const user = db.get('SELECT id, name, email, created_at FROM users WHERE id = ?', [decoded.id]);
+    // Fetch user from MongoDB
+    const user = await User.findById(decoded.id).select('-password');
 
     if (!user) {
       return res.status(401).json({

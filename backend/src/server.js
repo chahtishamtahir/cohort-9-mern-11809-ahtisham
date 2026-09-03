@@ -44,8 +44,11 @@ app.use((req, res) => {
 // Global exception handling middleware (must be registered after all routes)
 app.use(errorHandler);
 
+const connectDB = require('./config/db');
+
 // Start server only when executed directly (not when required for tests)
 if (require.main === module) {
+  connectDB();
   app.listen(PORT, () => {
     logger.info(`Server is running on http://localhost:${PORT}`);
   });
