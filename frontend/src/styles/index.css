@@ -426,3 +426,60 @@ body {
   from { opacity: 0; transform: scale(0.98); }
   to { opacity: 1; transform: scale(1); }
 }
+
+/* ContentEditable Rich Text Editor Formatting */
+[contenteditable]:empty:before {
+  content: attr(data-placeholder);
+  color: var(--text-faint);
+  cursor: text;
+  pointer-events: none;
+}
+
+[contenteditable] h1, [contenteditable] h2 {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin: 0.5rem 0;
+  color: var(--ink);
+}
+
+[contenteditable] h3 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin: 0.4rem 0;
+  color: var(--ink);
+}
+
+[contenteditable] p {
+  margin: 0.3rem 0;
+}
+
+[contenteditable] ul {
+  list-style-type: disc !important;
+  padding-left: 1.5rem !important;
+  margin: 0.4rem 0;
+}
+
+[contenteditable] ol {
+  list-style-type: decimal !important;
+  padding-left: 1.5rem !important;
+  margin: 0.4rem 0;
+}
+
+[contenteditable] blockquote {
+  border-left: 3px solid var(--accent);
+  padding-left: 12px;
+  margin: 0.5rem 0;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+[contenteditable] pre {
+  background: var(--canvas-soft);
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--rounded-sm);
+  padding: 10px;
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  overflow-x: auto;
+  margin: 0.5rem 0;
+}

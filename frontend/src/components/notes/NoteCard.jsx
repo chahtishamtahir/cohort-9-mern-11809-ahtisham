@@ -68,21 +68,21 @@ export const NoteCard = ({ note, onEdit, onDelete, onTogglePin }) => {
             <button
               type="button"
               onClick={() => onTogglePin(note)}
-              title={note.is_pinned ? 'Unpin note' : 'Pin note to top'}
+              title={note.is_pinned || note.isPinned ? 'Unpin note' : 'Pin note to top'}
               className="btn btn-ghost btn-sm"
               style={{
                 padding: '6px',
                 borderRadius: 'var(--rounded-full)',
-                color: note.is_pinned ? 'var(--accent)' : 'var(--text-muted)'
+                color: (note.is_pinned || note.isPinned) ? 'var(--accent)' : 'var(--text-muted)'
               }}
             >
-              <Pin size={15} fill={note.is_pinned ? 'currentColor' : 'none'} />
+              <Pin size={15} fill={(note.is_pinned || note.isPinned) ? 'currentColor' : 'none'} />
             </button>
 
             {/* Delete Button */}
             <button
               type="button"
-              onClick={() => onDelete(note.id)}
+              onClick={() => onDelete(note.id || note._id)}
               title="Delete note"
               className="btn btn-ghost btn-sm"
               style={{

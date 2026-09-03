@@ -77,7 +77,8 @@ export const DashboardPage = () => {
   const handleSaveNote = async (noteData) => {
     if (editingNote) {
       // Update
-      await notesApi.update(editingNote.id, noteData);
+      const id = editingNote.id || editingNote._id;
+      await notesApi.update(id, noteData);
     } else {
       // Create
       await notesApi.create(noteData);
@@ -90,7 +91,7 @@ export const DashboardPage = () => {
     if (window.confirm('Are you sure you want to delete this note?')) {
       try {
         await notesApi.delete(noteId);
-        setNotes((prev) => prev.filter((n) => n.id !== noteId));
+        setNotes((prev) => prev.filter((n) => (n.id || n._id) !== noteId));
       } catch (err) {
         alert(err.message || 'Failed to delete note');
       }
@@ -100,10 +101,12 @@ export const DashboardPage = () => {
   // Toggle pin
   const handleTogglePin = async (note) => {
     try {
-      const updatedPinned = !note.is_pinned;
-      await notesApi.update(note.id, { isPinned: updatedPinned });
+      const noteId = note.id || note._id;
+      const currentPinned = Boolean(note.is_pinned === 1 || note.is_pinned === true || note.isPinned === true);
+      const updatedPinned = !currentPinned;
+      await notesApi.update(noteId, { isPinned: updatedPinned });
       setNotes((prev) =>
-        prev.map((n) => (n.id === note.id ? { ...n, is_pinned: updatedPinned ? 1 : 0 } : n))
+        prev.map((n) => ((n.id || n._id) === noteId ? { ...n, is_pinned: updatedPinned, isPinned: updatedPinned } : n))
       );
     } catch (err) {
       alert(err.message || 'Failed to update pin status');
@@ -163,8 +166,9 @@ export const DashboardPage = () => {
   };
 
   // Pinned vs Regular Notes
-  const pinnedNotes = notes.filter((n) => n.is_pinned === 1);
-  const regularNotes = notes.filter((n) => !n.is_pinned);
+  const isNotePinned = (n) => Boolean(n.is_pinned === 1 || n.is_pinned === true || n.isPinned === true);
+  const pinnedNotes = notes.filter(isNotePinned);
+  const regularNotes = notes.filter((n) => !isNotePinned(n));
 
   return (
     <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '32px 24px 80px' }}>
@@ -399,7 +403,7 @@ export const DashboardPage = () => {
               >
                 {pinnedNotes.map((note) => (
                   <NoteCard
-                    key={note.id}
+                    key={note.id || note._id}
                     note={note}
                     onEdit={handleEditNote}
                     onDelete={handleDeleteNote}
@@ -438,7 +442,7 @@ export const DashboardPage = () => {
               >
                 {regularNotes.map((note) => (
                   <NoteCard
-                    key={note.id}
+                    key={note.id || note._id}
                     note={note}
                     onEdit={handleEditNote}
                     onDelete={handleDeleteNote}
