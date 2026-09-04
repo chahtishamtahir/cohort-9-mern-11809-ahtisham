@@ -20,12 +20,18 @@ app.use(express.json());
 // Application-wide HTTP request & response logging with Pino
 app.use(requestLogger);
 
+const mongoose = require('mongoose');
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
+  const dbState = mongoose.connection.readyState;
+  const dbStatus = dbState === 1 ? 'connected' : dbState === 2 ? 'connecting' : 'disconnected';
+
   res.status(200).json({
     status: 'OK',
     timestamp: new Date().toISOString(),
-    service: 'Notes App Backend API'
+    service: 'Notes App Backend API',
+    database: dbStatus
   });
 });
 

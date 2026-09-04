@@ -21,6 +21,21 @@ async function signup(req, res, next) {
     }
 
     const trimmedEmail = email.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(trimmedEmail)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a valid email address.'
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters long.'
+      });
+    }
 
     // Check if user already exists
     const existingUser = await User.findOne({ email: trimmedEmail });
@@ -55,7 +70,8 @@ async function signup(req, res, next) {
       user: {
         id: user._id,
         name: user.name,
-        email: user.email
+        email: user.email,
+        created_at: user.created_at
       }
     });
   } catch (error) {
@@ -137,8 +153,84 @@ async function getMe(req, res, next) {
   }
 }
 
+/**
+ * Update authenticated user profile (name and/or password)
+ * PUT /api/auth/profile
+ */
+async function updateProfile(req, res, next) {
+  try {
+    const userId = req.user.id || req.user._id;
+    const { name, currentPassword, newPassword } = req.body;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found.'
+      });
+    }
+
+    // Update name if provided
+    if (name !== undefined) {
+      if (!name || name.trim() === '') {
+        return res.status(400).json({
+          success: false,
+          message: 'Name cannot be empty.'
+        });
+      }
+      user.name = name.trim();
+    }
+
+    // Update password if provided
+    if (newPassword) {
+      if (!currentPassword) {
+        return res.status(400).json({
+          success: false,
+          message: 'Current password is required to change password.'
+        });
+      }
+
+      if (newPassword.length < 6) {
+        return res.status(400).json({
+          success: false,
+          message: 'New password must be at least 6 characters long.'
+        });
+      }
+
+      const isMatch = await bcrypt.compare(currentPassword, user.password);
+      if (!isMatch) {
+        return res.status(400).json({
+          success: false,
+          message: 'Current password is incorrect.'
+        });
+      }
+
+      const saltRounds = 10;
+      user.password = await bcrypt.hash(newPassword, saltRounds);
+    }
+
+    await user.save();
+
+    logger.info({ userId: user._id }, 'User profile updated successfully');
+
+    return res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully.',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        created_at: user.created_at
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   signup,
   login,
-  getMe
+  getMe,
+  updateProfile
 };

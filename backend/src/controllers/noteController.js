@@ -1,6 +1,10 @@
 const Note = require('../models/Note');
 const logger = require('../config/logger');
 
+function escapeRegex(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /**
  * Get all notes for authenticated user
  * Supports search query (?search=...) and category filter (?category=...)
@@ -18,7 +22,8 @@ async function getNotes(req, res, next) {
     }
 
     if (search && search.trim() !== '') {
-      const searchRegex = new RegExp(search.trim(), 'i');
+      const escapedSearch = escapeRegex(search.trim());
+      const searchRegex = new RegExp(escapedSearch, 'i');
       filter.$or = [{ title: searchRegex }, { content: searchRegex }];
     }
 
@@ -72,22 +77,24 @@ async function createNote(req, res, next) {
     const userId = req.user._id;
     const { title, content, category = 'General', isPinned = false } = req.body;
 
-    if (!title || title.trim() === '') {
+    if (!title || typeof title !== 'string' || title.trim() === '') {
       return res.status(400).json({
         success: false,
         message: 'Note title is required.'
       });
     }
 
+    const isPinnedBool = isPinned === true || isPinned === 'true';
+
     const note = await Note.create({
       user: userId,
       title: title.trim(),
       content: content || '',
       category: category || 'General',
-      is_pinned: Boolean(isPinned)
+      is_pinned: isPinnedBool
     });
 
-    logger.info({ userId, noteId: note._id, title }, 'Created note successfully in MongoDB');
+    logger.info({ userId, noteId: note._id, title: note.title }, 'Created note successfully in MongoDB');
 
     return res.status(201).json({
       success: true,
@@ -110,10 +117,20 @@ async function updateNote(req, res, next) {
     const { title, content, category, isPinned } = req.body;
 
     const updateFields = {};
-    if (title !== undefined) updateFields.title = title.trim();
+    if (title !== undefined) {
+      if (typeof title !== 'string' || title.trim() === '') {
+        return res.status(400).json({
+          success: false,
+          message: 'Note title cannot be empty.'
+        });
+      }
+      updateFields.title = title.trim();
+    }
     if (content !== undefined) updateFields.content = content;
     if (category !== undefined) updateFields.category = category;
-    if (isPinned !== undefined) updateFields.is_pinned = Boolean(isPinned);
+    if (isPinned !== undefined) {
+      updateFields.is_pinned = isPinned === true || isPinned === 'true';
+    }
 
     const updatedNote = await Note.findOneAndUpdate(
       { _id: noteId, user: userId },
@@ -209,14 +226,26 @@ async function importNotes(req, res, next) {
     }
 
     const docsToInsert = notes
-      .filter((item) => item && item.title)
+      .filter((item) => item && typeof item.title === 'string' && item.title.trim() !== '')
       .map((item) => ({
         user: userId,
-        title: item.title,
+        title: item.title.trim(),
         content: item.content || '',
         category: item.category || 'General',
-        is_pinned: Boolean(item.is_pinned || item.isPinned)
+        is_pinned: Boolean(
+          item.is_pinned === true ||
+          item.is_pinned === 'true' ||
+          item.isPinned === true ||
+          item.isPinned === 'true'
+        )
       }));
+
+    if (docsToInsert.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No valid notes with titles found to import.'
+      });
+    }
 
     const inserted = await Note.insertMany(docsToInsert);
 

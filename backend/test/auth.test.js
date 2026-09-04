@@ -159,4 +159,109 @@ describe('Authentication API (MERN with JavaScript)', () => {
       expect(res.body.user).to.have.property('email', 'me@example.com');
     });
   });
+
+  describe('PUT /api/auth/profile', () => {
+    const fakeToken = jwt.sign(
+      { id: '507f1f77bcf86cd799439011', email: 'me@example.com' },
+      process.env.JWT_SECRET || 'super_secret_jwt_key_notes_app_2026'
+    );
+
+    function stubFindById(user) {
+      const p = Promise.resolve(user);
+      p.select = sinon.stub().resolves(user);
+      return sinon.stub(User, 'findById').callsFake(() => {
+        const query = Promise.resolve(user);
+        query.select = sinon.stub().resolves(user);
+        return query;
+      });
+    }
+
+    it('should return 401 if no token provided', async () => {
+      const res = await request(app)
+        .put('/api/auth/profile')
+        .send({ name: 'Updated Name' });
+
+      expect(res.status).to.equal(401);
+      expect(res.body).to.have.property('success', false);
+    });
+
+    it('should return 400 if name is empty string', async () => {
+      stubFindById({
+        _id: '507f1f77bcf86cd799439011',
+        name: 'Old Name',
+        email: 'me@example.com'
+      });
+
+      const res = await request(app)
+        .put('/api/auth/profile')
+        .set('Authorization', `Bearer ${fakeToken}`)
+        .send({ name: '   ' });
+
+      expect(res.status).to.equal(400);
+      expect(res.body.message).to.include('Name cannot be empty');
+    });
+
+    it('should return 400 if changing password without currentPassword', async () => {
+      stubFindById({
+        _id: '507f1f77bcf86cd799439011',
+        name: 'Old Name',
+        email: 'me@example.com',
+        password: '$2a$10$hashedPassword'
+      });
+
+      const res = await request(app)
+        .put('/api/auth/profile')
+        .set('Authorization', `Bearer ${fakeToken}`)
+        .send({ newPassword: 'newSecretPassword123' });
+
+      expect(res.status).to.equal(400);
+      expect(res.body.message).to.include('Current password is required');
+    });
+
+    it('should return 400 if current password is incorrect', async () => {
+      stubFindById({
+        _id: '507f1f77bcf86cd799439011',
+        name: 'Old Name',
+        email: 'me@example.com',
+        password: '$2a$10$hashedPassword'
+      });
+      sinon.stub(bcrypt, 'compare').resolves(false);
+
+      const res = await request(app)
+        .put('/api/auth/profile')
+        .set('Authorization', `Bearer ${fakeToken}`)
+        .send({ currentPassword: 'wrongPassword', newPassword: 'newSecretPassword123' });
+
+      expect(res.status).to.equal(400);
+      expect(res.body.message).to.include('Current password is incorrect');
+    });
+
+    it('should update name and password successfully', async () => {
+      const mockUser = {
+        _id: '507f1f77bcf86cd799439011',
+        name: 'Old Name',
+        email: 'me@example.com',
+        password: '$2a$10$hashedPassword',
+        created_at: new Date(),
+        save: sinon.stub().resolves()
+      };
+      stubFindById(mockUser);
+      sinon.stub(bcrypt, 'compare').resolves(true);
+      sinon.stub(bcrypt, 'hash').resolves('$2a$10$newHashedPassword');
+
+      const res = await request(app)
+        .put('/api/auth/profile')
+        .set('Authorization', `Bearer ${fakeToken}`)
+        .send({
+          name: 'Updated Name',
+          currentPassword: 'correctCurrentPassword',
+          newPassword: 'newSecurePassword123'
+        });
+
+      expect(res.status).to.equal(200);
+      expect(res.body).to.have.property('success', true);
+      expect(res.body.user.name).to.equal('Updated Name');
+      expect(mockUser.save.calledOnce).to.be.true;
+    });
+  });
 });
