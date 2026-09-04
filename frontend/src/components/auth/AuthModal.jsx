@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/useAuth';
 import { X, AlertCircle } from 'lucide-react';
 
 export const AuthModal = () => {
@@ -44,7 +44,7 @@ export const AuthModal = () => {
   };
 
   return (
-    <div className="modal-overlay" onClick={closeAuthModal}>
+    <div className="modal-overlay">
       <div
         className="modal-content"
         onClick={(e) => e.stopPropagation()}

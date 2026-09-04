@@ -5,17 +5,31 @@ import { Pin, Trash2, Edit3, Calendar } from 'lucide-react';
  * NoteCard Component
  * Displays a single note with its category badge, preview, pin status, and quick actions.
  */
-export const NoteCard = ({ note, onEdit, onDelete, onTogglePin }) => {
-  // Strip HTML tags for clean card preview
-  const plainTextContent = note.content
-    ? note.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
-    : 'No content';
+function getCleanExcerpt(htmlContent) {
+  if (!htmlContent) return 'No content';
+  return htmlContent
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ');
+}
 
-  const formattedDate = new Date(note.updated_at || note.created_at).toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric'
-  });
+export const NoteCard = ({ note, onEdit, onDelete, onTogglePin }) => {
+  const plainTextContent = getCleanExcerpt(note.content);
+
+  const rawDate = note.updated_at || note.created_at;
+  const formattedDate = rawDate && !isNaN(new Date(rawDate).getTime())
+    ? new Date(rawDate).toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      })
+    : 'Recently';
 
   return (
     <div

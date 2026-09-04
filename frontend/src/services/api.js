@@ -3,7 +3,7 @@
  * Handles communication with the Node.js backend API
  */
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 function getAuthHeaders() {
   const token = localStorage.getItem('notionflow_token');
@@ -50,7 +50,13 @@ export const authApi = {
       body: JSON.stringify({ email, password })
     }),
 
-  getMe: () => request('/auth/me')
+  getMe: () => request('/auth/me'),
+
+  updateProfile: (profileData) =>
+    request('/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify(profileData)
+    })
 };
 
 // Notes Endpoints

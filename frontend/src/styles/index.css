@@ -109,7 +109,7 @@ body {
 /* Container */
 .container {
   width: 100%;
-  max-width: 1080px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 0 var(--space-6);
 }
@@ -236,7 +236,7 @@ body {
   top: var(--space-4);
   z-index: 100;
   width: 100%;
-  max-width: 1080px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 0 var(--space-6);
 }
@@ -252,19 +252,28 @@ body {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
 }
 
-/* 30% Squircle App Icon per DESIGN.md */
+@media (max-width: 640px) {
+  .nav-user-name {
+    display: none;
+  }
+}
+
+/* 30% Squircle Brand Logo per DESIGN.md: Neutral White BG + Crisp Black N */
 .app-icon-squircle {
   width: 32px;
   height: 32px;
   border-radius: 30%;
-  background-color: var(--primary);
-  color: var(--on-primary);
+  background-color: #ffffff;
+  color: #141414;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 750;
+  font-weight: 800;
   font-size: 0.95rem;
   flex-shrink: 0;
+  user-select: none;
 }
 
 .badge-pill {
@@ -390,12 +399,18 @@ body {
 
 /* Inverse Footer */
 .footer-inverse {
-  background-color: var(--primary);
-  color: var(--on-primary);
+  background-color: #0e1117;
+  color: #ffffff;
+  border-top: 1px solid var(--hairline-soft);
   border-top-left-radius: var(--rounded-lg);
   border-top-right-radius: var(--rounded-lg);
-  padding: var(--space-12) 0 var(--space-10);
+  padding: var(--space-10) 0 var(--space-8);
   margin-top: var(--space-16);
+}
+
+[data-theme="dark"] .footer-inverse {
+  background-color: #06080c;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 /* Breakpoints */
@@ -425,6 +440,31 @@ body {
 @keyframes fadeIn {
   from { opacity: 0; transform: scale(0.98); }
   to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 640px) {
+  .nav-user-name {
+    display: none !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .modal-content {
+    padding: 24px 18px !important;
+  }
+  .nav-pill-wrapper {
+    padding: 0 var(--space-3);
+  }
+}
+
+[data-theme="dark"] .card-canvas {
+  background-color: var(--canvas-soft);
+  border-color: var(--hairline);
 }
 
 /* ContentEditable Rich Text Editor Formatting */
@@ -482,4 +522,26 @@ body {
   font-size: 0.88rem;
   overflow-x: auto;
   margin: 0.5rem 0;
+}
+
+/* Toast Animations & Responsive Bottom Placement */
+@keyframes slideUpToast {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 640px) {
+  .toast-container {
+    bottom: 16px !important;
+    right: 16px !important;
+    left: 16px !important;
+    width: auto !important;
+    align-items: center !important;
+  }
 }

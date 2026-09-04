@@ -1,7 +1,7 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { authApi } from '../services/api';
-
-const AuthContext = createContext(null);
+import { useToast } from './useToast';
+import { AuthContext } from './AuthContextDefinition';
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -9,6 +9,9 @@ export const AuthProvider = ({ children }) => {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState('signup'); // 'login' | 'signup'
   const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [noteCount, setNoteCount] = useState(0);
+
+  const toast = useToast();
 
   // Restore user session on mount
   useEffect(() => {
@@ -24,12 +27,13 @@ export const AuthProvider = ({ children }) => {
           // Token expired or invalid
           localStorage.removeItem('notionflow_token');
           setUser(null);
+          toast.info('Your previous session has expired. Please log in again.');
         }
       }
       setLoadingUser(false);
     }
     restoreSession();
-  }, []);
+  }, [toast]);
 
   const login = async (email, password) => {
     if (!email || !password) {
@@ -40,6 +44,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('notionflow_token', res.token);
       setUser(res.user);
       setAuthModalOpen(false);
+      toast.success(`Logged in successfully. Welcome back, ${res.user.name}!`);
       return res.user;
     }
   };
@@ -53,6 +58,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('notionflow_token', res.token);
       setUser(res.user);
       setAuthModalOpen(false);
+      toast.success(`Account created successfully! Welcome to NotionFlow, ${res.user.name}.`);
       return res.user;
     }
   };
@@ -61,6 +67,16 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('notionflow_token');
     setUser(null);
     setProfileModalOpen(false);
+    toast.info('You have been logged out of your workspace.');
+  };
+
+  const updateProfile = async (profileData) => {
+    const res = await authApi.updateProfile(profileData);
+    if (res && res.user) {
+      setUser((prev) => ({ ...prev, ...res.user }));
+      toast.success(res.message || 'Profile updated successfully.');
+      return res.user;
+    }
   };
 
   const openAuthModal = (mode = 'signup') => {
@@ -89,6 +105,7 @@ export const AuthProvider = ({ children }) => {
         login,
         signup,
         logout,
+        updateProfile,
         authModalOpen,
         authModalMode,
         setAuthModalMode,
@@ -96,18 +113,12 @@ export const AuthProvider = ({ children }) => {
         closeAuthModal,
         profileModalOpen,
         openProfileModal,
-        closeProfileModal
+        closeProfileModal,
+        noteCount,
+        setNoteCount
       }}
     >
       {children}
     </AuthContext.Provider>
   );
-};
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
 };
