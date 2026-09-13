@@ -10,7 +10,7 @@ import { AuthModal } from './components/auth/AuthModal';
 import { UserProfileModal } from './components/profile/UserProfileModal';
 
 const AppContent = ({ theme, toggleTheme }) => {
-  const { isAuthenticated, loadingUser } = useAuth();
+  const { user, isAuthenticated, loadingUser } = useAuth();
 
   return (
     <div className="app-wrapper" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -30,7 +30,7 @@ const AppContent = ({ theme, toggleTheme }) => {
 
       <Footer />
       <AuthModal />
-      <UserProfileModal />
+      <UserProfileModal key={user?.id || user?._id || 'guest'} />
     </div>
   );
 };

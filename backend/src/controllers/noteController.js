@@ -24,7 +24,11 @@ async function getNotes(req, res, next) {
     if (search && search.trim() !== '') {
       const escapedSearch = escapeRegex(search.trim());
       const searchRegex = new RegExp(escapedSearch, 'i');
-      filter.$or = [{ title: searchRegex }, { content: searchRegex }];
+      filter.$or = [
+        { title: searchRegex },
+        { content: searchRegex },
+        { category: searchRegex }
+      ];
     }
 
     const notes = await Note.find(filter).sort({ is_pinned: -1, updated_at: -1 });

@@ -5,29 +5,31 @@ export const Footer = () => {
     <footer className="footer-inverse">
       <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
         {/* Brand Lockup */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div
-            className="app-icon-squircle"
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <img
+            src="/favicon.svg?v=2"
+            alt="NotionFlow Logo"
             style={{
-              width: '34px',
-              height: '34px',
-              fontSize: '1rem',
-              fontWeight: 800,
-              backgroundColor: '#ffffff',
-              color: '#111318',
-              boxShadow: '0 2px 10px rgba(0, 0, 0, 0.35)',
-              border: '1.5px solid rgba(255, 255, 255, 0.35)'
+              width: '46px',
+              height: '46px',
+              borderRadius: '13px',
+              boxShadow: '0 6px 20px rgba(0, 0, 0, 0.12), 0 2px 5px rgba(0, 0, 0, 0.08)',
+              flexShrink: 0,
+              display: 'block'
             }}
-          >
-            N
+          />
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontWeight: 800, fontSize: '1.25rem', letterSpacing: '-0.025em', color: 'var(--on-primary)', lineHeight: 1.2 }}>
+              NotionFlow
+            </span>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-faint)', fontWeight: 500 }}>
+              Ideas in Flow
+            </span>
           </div>
-          <span style={{ fontWeight: 750, fontSize: '1.15rem', letterSpacing: '-0.02em', color: '#ffffff' }}>
-            NotionFlow
-          </span>
         </div>
 
         {/* Clean Copyright */}
-        <div style={{ color: 'rgba(255, 255, 255, 0.65)', fontSize: '0.88rem' }}>
+        <div style={{ color: 'var(--text-faint)', fontSize: '0.88rem' }}>
           © {new Date().getFullYear()} NotionFlow. All rights reserved.
         </div>
       </div>

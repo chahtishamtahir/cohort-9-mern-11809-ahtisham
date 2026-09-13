@@ -1,11 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/useAuth';
-import { X, LogOut, Calendar, CheckCircle2, User, Lock, KeyRound, AlertCircle, Check } from 'lucide-react';
+import { X, LogOut, Calendar, User, Lock, KeyRound, AlertCircle, Check, Trash2, AlertTriangle } from 'lucide-react';
 
 export const UserProfileModal = () => {
-  const { user, profileModalOpen, closeProfileModal, logout, noteCount, updateProfile } = useAuth();
+  const { user, profileModalOpen, closeProfileModal, logout, noteCount, updateProfile, deleteAccount } = useAuth();
 
-  const [activeTab, setActiveTab] = useState('profile'); // 'profile' | 'security'
+  const [activeTab, setActiveTab] = useState('profile'); // 'profile' | 'security' | 'danger'
+
+  // Delete account state
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteConfirmStep, setDeleteConfirmStep] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   // Name edit state
   const [name, setName] = useState(user?.name || '');
@@ -22,11 +28,40 @@ export const UserProfileModal = () => {
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
 
-  // Sync state when user changes
-  if (user !== prevUser) {
+  const resetModalState = () => {
+    setActiveTab('profile');
+    setDeletePassword('');
+    setDeleteConfirmStep(false);
+    setDeletingAccount(false);
+    setDeleteError('');
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordError('');
+    setPasswordSuccess('');
+    setNameError('');
+    setNameSuccess('');
+  };
+
+  // Sync state when user identity changes
+  const currentUserId = user?.id || user?._id;
+  const prevUserId = prevUser?.id || prevUser?._id;
+
+  if (currentUserId !== prevUserId) {
+    setPrevUser(user);
+    setName(user?.name || '');
+    resetModalState();
+  } else if (user?.name !== prevUser?.name && !savingName) {
     setPrevUser(user);
     setName(user?.name || '');
   }
+
+  // Reset modal state whenever modal closes
+  useEffect(() => {
+    if (!profileModalOpen) {
+      resetModalState();
+    }
+  }, [profileModalOpen]);
 
   if (!profileModalOpen || !user) return null;
 
@@ -103,16 +138,41 @@ export const UserProfileModal = () => {
     }
   };
 
+  const handleCloseModal = () => {
+    resetModalState();
+    closeProfileModal();
+  };
+
+  const handleDeleteAccount = async (e) => {
+    e.preventDefault();
+    setDeleteError('');
+
+    if (!deletePassword) {
+      setDeleteError('Please enter your password to confirm account deletion.');
+      return;
+    }
+
+    try {
+      setDeletingAccount(true);
+      await deleteAccount(deletePassword);
+      resetModalState();
+    } catch (err) {
+      setDeleteError(err.message || 'Failed to delete account. Please verify your password.');
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
+
   return (
     <div className="modal-overlay">
       <div
         className="modal-content"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: '440px', padding: '24px 28px' }}
+        style={{ maxWidth: '460px', padding: '24px 28px' }}
       >
         {/* Close Button */}
         <button
-          onClick={closeProfileModal}
+          onClick={handleCloseModal}
           className="btn btn-ghost btn-sm"
           style={{
             position: 'absolute',
@@ -132,7 +192,7 @@ export const UserProfileModal = () => {
             Account Settings
           </h2>
           <span className="small-text" style={{ color: 'var(--text-muted)' }}>
-            Manage your personal profile and security preferences
+            Manage your personal profile, security, and account preferences
           </span>
         </div>
 
@@ -140,7 +200,7 @@ export const UserProfileModal = () => {
         <div
           style={{
             display: 'flex',
-            gap: '6px',
+            gap: '4px',
             background: 'var(--field)',
             padding: '4px',
             borderRadius: 'var(--rounded-full)',
@@ -149,10 +209,13 @@ export const UserProfileModal = () => {
         >
           <button
             type="button"
+            aria-label="Profile Details"
             onClick={() => {
               setActiveTab('profile');
               setNameError('');
               setPasswordError('');
+              setDeleteError('');
+              setDeleteConfirmStep(false);
             }}
             style={{
               flex: 1,
@@ -160,27 +223,31 @@ export const UserProfileModal = () => {
               alignItems: 'center',
               justifyContent: 'center',
               gap: '6px',
-              padding: '8px 14px',
+              padding: '8px 10px',
               borderRadius: 'var(--rounded-full)',
               border: 'none',
               cursor: 'pointer',
               fontWeight: 600,
-              fontSize: '0.84rem',
+              fontSize: '0.82rem',
               background: activeTab === 'profile' ? 'var(--canvas)' : 'transparent',
               color: activeTab === 'profile' ? 'var(--ink)' : 'var(--text-muted)',
               boxShadow: activeTab === 'profile' ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
-              transition: 'all 0.15s ease'
+              transition: 'all 0.15s ease',
+              whiteSpace: 'nowrap'
             }}
           >
             <User size={14} />
-            Profile Details
+            Profile
           </button>
           <button
             type="button"
+            aria-label="Security & Password"
             onClick={() => {
               setActiveTab('security');
               setNameError('');
               setPasswordError('');
+              setDeleteError('');
+              setDeleteConfirmStep(false);
             }}
             style={{
               flex: 1,
@@ -188,20 +255,53 @@ export const UserProfileModal = () => {
               alignItems: 'center',
               justifyContent: 'center',
               gap: '6px',
-              padding: '8px 14px',
+              padding: '8px 10px',
               borderRadius: 'var(--rounded-full)',
               border: 'none',
               cursor: 'pointer',
               fontWeight: 600,
-              fontSize: '0.84rem',
+              fontSize: '0.82rem',
               background: activeTab === 'security' ? 'var(--canvas)' : 'transparent',
               color: activeTab === 'security' ? 'var(--ink)' : 'var(--text-muted)',
               boxShadow: activeTab === 'security' ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
-              transition: 'all 0.15s ease'
+              transition: 'all 0.15s ease',
+              whiteSpace: 'nowrap'
             }}
           >
             <Lock size={14} />
-            Security & Password
+            Security
+          </button>
+          <button
+            type="button"
+            aria-label="Danger Zone"
+            onClick={() => {
+              setActiveTab('danger');
+              setNameError('');
+              setPasswordError('');
+              setDeleteError('');
+              setDeleteConfirmStep(false);
+            }}
+            style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              padding: '8px 10px',
+              borderRadius: 'var(--rounded-full)',
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '0.82rem',
+              background: activeTab === 'danger' ? 'var(--canvas)' : 'transparent',
+              color: activeTab === 'danger' ? '#ef4444' : 'var(--text-muted)',
+              boxShadow: activeTab === 'danger' ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
+              transition: 'all 0.15s ease',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            <AlertTriangle size={14} color={activeTab === 'danger' ? '#ef4444' : 'currentColor'} />
+            Danger Zone
           </button>
         </div>
 
@@ -311,11 +411,11 @@ export const UserProfileModal = () => {
                 </span>
               </div>
               <div>
-                <span style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--ink)' }}>
-                  Free
+                <span style={{ fontSize: '1.25rem', fontWeight: 700, color: '#10b981' }}>
+                  Active
                 </span>
                 <span style={{ display: 'block', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                  Workspace Plan
+                  Account Status
                 </span>
               </div>
             </div>
@@ -327,12 +427,6 @@ export const UserProfileModal = () => {
                   <Calendar size={14} /> Member Since
                 </span>
                 <span style={{ fontWeight: 600, color: 'var(--ink)' }}>{memberSince}</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: 'var(--text-muted)' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <CheckCircle2 size={14} /> Account Status
-                </span>
-                <span style={{ fontWeight: 600, color: 'var(--ink)' }}>Active</span>
               </div>
             </div>
           </div>
@@ -472,11 +566,153 @@ export const UserProfileModal = () => {
           </form>
         )}
 
+        {/* Tab 3: Danger Zone */}
+        {activeTab === 'danger' && (
+          <div style={{ marginBottom: '18px' }}>
+            <div
+              style={{
+                backgroundColor: 'rgba(239, 68, 68, 0.06)',
+                border: '1px solid rgba(239, 68, 68, 0.25)',
+                borderRadius: 'var(--rounded-sm)',
+                padding: '16px',
+                marginBottom: '16px'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '10px' }}>
+                <AlertTriangle size={20} color="#ef4444" style={{ flexShrink: 0, marginTop: '2px' }} />
+                <div>
+                  <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#ef4444', marginBottom: '4px' }}>
+                    Permanent Account Deletion
+                  </h4>
+                  <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: '1.45' }}>
+                    Deleting your account is permanent. All your workspace data will be wiped immediately:
+                  </p>
+                </div>
+              </div>
+
+              <ul style={{ paddingLeft: '28px', fontSize: '0.8rem', color: 'var(--ink-soft)', lineHeight: '1.6', marginBottom: '8px' }}>
+                <li>All <strong>{noteCount || user.noteCount || 0} notes</strong> and categories will be erased</li>
+                <li>Your profile and login credentials will be removed</li>
+                <li>This action cannot be undone or recovered</li>
+              </ul>
+            </div>
+
+            {deleteError && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '0.82rem',
+                  color: '#ef4444',
+                  backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                  padding: '8px 12px',
+                  borderRadius: 'var(--rounded-xs)',
+                  marginBottom: '14px'
+                }}
+              >
+                <AlertCircle size={15} style={{ flexShrink: 0 }} />
+                <span>{deleteError}</span>
+              </div>
+            )}
+
+            {!deleteConfirmStep ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteConfirmStep(true);
+                  setDeleteError('');
+                }}
+                className="btn btn-primary"
+                style={{
+                  width: '100%',
+                  backgroundColor: '#ef4444',
+                  borderColor: '#ef4444',
+                  color: '#ffffff',
+                  padding: '10px 16px',
+                  fontSize: '0.88rem'
+                }}
+              >
+                <Trash2 size={16} />
+                Delete NotionFlow Account...
+              </button>
+            ) : (
+              <form onSubmit={handleDeleteAccount}>
+                <div style={{ marginBottom: '14px' }}>
+                  <label
+                    htmlFor="delete-account-password"
+                    style={{
+                      display: 'block',
+                      fontSize: '0.82rem',
+                      fontWeight: 600,
+                      marginBottom: '6px',
+                      color: 'var(--ink)'
+                    }}
+                  >
+                    Confirm with Password
+                  </label>
+                  <input
+                    id="delete-account-password"
+                    type="password"
+                    className="text-input"
+                    value={deletePassword}
+                    onChange={(e) => {
+                      setDeletePassword(e.target.value);
+                      setDeleteError('');
+                    }}
+                    placeholder="Enter your current password"
+                    autoFocus
+                    style={{
+                      width: '100%',
+                      padding: '9px 14px',
+                      fontSize: '0.88rem',
+                      borderColor: deleteError ? '#ef4444' : undefined
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeleteConfirmStep(false);
+                      setDeletePassword('');
+                      setDeleteError('');
+                    }}
+                    disabled={deletingAccount}
+                    className="btn btn-outline"
+                    style={{ flex: 1, padding: '9px 14px', fontSize: '0.84rem' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={deletingAccount || !deletePassword}
+                    className="btn btn-primary"
+                    style={{
+                      flex: 1.5,
+                      backgroundColor: '#ef4444',
+                      borderColor: '#ef4444',
+                      color: '#ffffff',
+                      padding: '9px 14px',
+                      fontSize: '0.84rem',
+                      opacity: (deletingAccount || !deletePassword) ? 0.6 : 1,
+                      cursor: (deletingAccount || !deletePassword) ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    {deletingAccount ? 'Deleting Account...' : 'Permanently Delete'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        )}
+
         {/* Divider & Logout Button */}
         <div style={{ borderTop: '1px solid var(--hairline-soft)', paddingTop: '16px', marginTop: '6px' }}>
           <button
             onClick={() => {
-              closeProfileModal();
+              handleCloseModal();
               logout();
             }}
             className="btn btn-outline"

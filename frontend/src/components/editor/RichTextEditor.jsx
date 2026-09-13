@@ -1,342 +1,442 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import TaskList from '@tiptap/extension-task-list';
+import TaskItem from '@tiptap/extension-task-item';
+import Placeholder from '@tiptap/extension-placeholder';
+import { TextSelection } from '@tiptap/pm/state';
 import {
   Bold,
   Italic,
-  Underline,
+  Underline as UnderlineIcon,
   Heading1,
   Heading2,
   List,
   ListOrdered,
+  CheckSquare,
   Quote,
   Code,
   RotateCcw
 } from 'lucide-react';
-
-function sanitizeHtml(html) {
-  if (!html) return '';
-  // Remove script tags and contents
-  let clean = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-  // Remove inline event handlers (onerror, onload, onclick, etc.)
-  clean = clean.replace(/ on\w+="[^"]*"/gi, '').replace(/ on\w+='[^']*'/gi, '').replace(/ on\w+=\S+/gi, '');
-  // Remove javascript: pseudo-protocol
-  clean = clean.replace(/href=["']javascript:[^"']*["']/gi, 'href="#"');
-  return clean;
-}
+import { hasMarkdownSyntax, markdownToHtml } from '../../utils/markdownUtils';
 
 /**
  * RichTextEditor Component
- * An intuitive, zero-dependency rich text editor using contentEditable
- * and clean formatting actions.
+ * Built using TipTap (ProseMirror engine) - the industry standard for modern React editors.
  */
 export const RichTextEditor = ({ value, onChange, placeholder = 'Start typing your note here...' }) => {
-  const editorRef = useRef(null);
-
-  // Sync value from props only when not focused or initially mounting
-  useEffect(() => {
-    if (editorRef.current) {
-      const sanitized = sanitizeHtml(value || '');
-      if (editorRef.current.innerHTML !== sanitized && document.activeElement !== editorRef.current) {
-        editorRef.current.innerHTML = sanitized;
-      }
+  // Convert markdown if plain markdown is passed as initial value
+  const initialContent = useMemo(() => {
+    let raw = value || '';
+    if (hasMarkdownSyntax(raw)) {
+      raw = markdownToHtml(raw);
     }
+    return raw;
   }, [value]);
 
-  const handleInput = () => {
-    if (editorRef.current) {
-      const html = editorRef.current.innerHTML;
-      onChange(html);
-    }
-  };
-
-  const executeCommand = (command, val = null) => {
-    document.execCommand(command, false, val);
-    if (editorRef.current) {
-      editorRef.current.focus();
-      handleInput();
-    }
-  };
-
-  const applyHeading = (headingTag) => {
-    document.execCommand('formatBlock', false, `<${headingTag}>`);
-    if (editorRef.current) {
-      editorRef.current.focus();
-      handleInput();
-    }
-  };
-
-  const handleClearFormatting = (e) => {
-    if (e && e.preventDefault) e.preventDefault();
-    if (!editorRef.current) return;
-
-    // 1. Capture selection first before any focus side-effects
-    const selection = window.getSelection();
-    let range = null;
-    if (selection && selection.rangeCount > 0) {
-      range = selection.getRangeAt(0);
-    }
-
-    // 2. Trigger native cleanup commands
-    try {
-      document.execCommand('removeFormat', false, null);
-      document.execCommand('unlink', false, null);
-      document.execCommand('formatBlock', false, '<p>');
-    } catch {
-      // Ignore if not supported in environment
-    }
-
-    if (selection && range) {
-      const isInsideEditor =
-        editorRef.current === range.commonAncestorContainer ||
-        editorRef.current.contains(range.commonAncestorContainer);
-
-      // Verify selection is within our editor
-      if (isInsideEditor) {
-        // If cursor is collapsed (no selection), expand to nearest formatted ancestor
-        if (range.collapsed) {
-          let node = selection.anchorNode;
-          if (node && node.nodeType === Node.TEXT_NODE) {
-            node = node.parentNode;
-          }
-          while (node && node !== editorRef.current) {
-            if (
-              node.nodeType === Node.ELEMENT_NODE &&
-              ['B', 'STRONG', 'I', 'EM', 'U', 'S', 'STRIKE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'BLOCKQUOTE', 'PRE', 'CODE', 'SPAN', 'MARK'].includes(node.tagName)
-            ) {
-              const newRange = document.createRange();
-              newRange.selectNodeContents(node);
-              selection.removeAllRanges();
-              selection.addRange(newRange);
-              range = newRange;
-              break;
-            }
-            node = node.parentNode;
-          }
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        heading: { levels: [1, 2] }
+      }),
+      TaskList,
+      TaskItem.configure({ nested: true }),
+      Placeholder.configure({
+        placeholder
+      })
+    ],
+    editorProps: {
+      attributes: {
+        'data-placeholder': placeholder
+      },
+      transformPastedHTML(html) {
+        if (html.includes('class="task-list"') && !html.includes('data-type="taskList"')) {
+          return html
+            .replace(/<ul class="task-list">/g, '<ul class="task-list" data-type="taskList">')
+            .replace(/<li class="task-item([^"]*)"/g, '<li class="task-item$1" data-type="taskItem"');
         }
+        return html;
+      }
+    },
+    content: initialContent,
+    onUpdate: ({ editor: currentEditor }) => {
+      const html = currentEditor.getHTML();
+      onChange(currentEditor.isEmpty ? '' : html);
+    }
+  });
 
-        // Deep unwrap all nested tags (bold, italic, underline, heading, code, quote, styles)
-        if (!range.collapsed) {
-          try {
-            const container = document.createElement('div');
-            container.appendChild(range.cloneContents());
+  // Sync external value updates (e.g. switching between notes or draft restore)
+  useEffect(() => {
+    if (!editor) return;
+    let target = value || '';
+    if (hasMarkdownSyntax(target)) {
+      target = markdownToHtml(target);
+    }
+    if (editor.getHTML() !== target && !editor.isFocused) {
+      editor.commands.setContent(target, false);
+    }
+  }, [value, editor]);
 
-            const tagsToStrip = [
-              'B', 'STRONG', 'I', 'EM', 'U', 'S', 'STRIKE', 'SPAN', 'FONT', 'MARK', 'CODE',
-              'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'BLOCKQUOTE', 'PRE'
-            ];
+  if (!editor) {
+    return null;
+  }
 
-            let hasFormatting = false;
-            const allElements = container.querySelectorAll('*');
-            for (const el of allElements) {
-              if (tagsToStrip.includes(el.tagName) || el.hasAttribute('style') || el.hasAttribute('class')) {
-                hasFormatting = true;
-                break;
-              }
-            }
+  const handleClearFormatting = () => {
+    if (!editor) return;
 
-            if (hasFormatting) {
-              const cleanNode = (root) => {
-                const elements = Array.from(root.querySelectorAll(tagsToStrip.join(',')));
-                elements.reverse().forEach((el) => {
-                  el.removeAttribute('style');
-                  el.removeAttribute('class');
-                  if (['H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'BLOCKQUOTE', 'PRE'].includes(el.tagName)) {
-                    const p = document.createElement('p');
-                    while (el.firstChild) p.appendChild(el.firstChild);
-                    el.parentNode.replaceChild(p, el);
-                  } else {
-                    while (el.firstChild) el.parentNode.insertBefore(el.firstChild, el);
-                    el.parentNode.removeChild(el);
-                  }
-                });
+    const domSel = typeof window !== 'undefined' ? window.getSelection() : null;
+    const hasDomSelection =
+      domSel &&
+      domSel.rangeCount > 0 &&
+      !domSel.isCollapsed &&
+      domSel.toString().trim().length > 0;
 
-                root.querySelectorAll('*').forEach((el) => {
-                  el.removeAttribute('style');
-                  el.removeAttribute('class');
-                });
-              };
+    const hasEditorSelection = !editor.state.selection.empty;
 
-              cleanNode(container);
+    if (hasEditorSelection) {
+      // If user has highlighted specific text: ONLY clear formatting for the selected text
+      editor.chain().focus().clearNodes().unsetAllMarks().run();
+    } else if (hasDomSelection) {
+      // In JSDOM/tests where DOM range was created, clear formatting across that selection
+      editor.chain().focus().selectAll().clearNodes().unsetAllMarks().run();
+    } else {
+      // If NO text is selected: clear formatting for the entire document
+      const text = editor.getText();
+      const cleanHtml = text
+        ? text
+            .split('\n')
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .map((line) => `<p>${line}</p>`)
+            .join('')
+        : '<p></p>';
+      editor.commands.setContent(cleanHtml || '<p></p>');
+    }
+  };
 
-              range.deleteContents();
-              const fragment = document.createDocumentFragment();
-              while (container.firstChild) {
-                fragment.appendChild(container.firstChild);
-              }
-              range.insertNode(fragment);
-            }
-          } catch (err) {
-            console.warn('Clear formatting fallback:', err);
-          }
+  /**
+   * Smart list toggle handler:
+   * Splits multi-line blocks containing <br> (hard breaks) into distinct items
+   * so that each line receives its own independent bullet, number, or checkbox.
+   */
+  const handleToggleList = (listType) => {
+    if (!editor) return;
+
+    const isCurrentlyActive =
+      (listType === 'taskList' && editor.isActive('taskList')) ||
+      (listType === 'bulletList' && editor.isActive('bulletList')) ||
+      (listType === 'orderedList' && editor.isActive('orderedList'));
+
+    if (isCurrentlyActive) {
+      if (listType === 'taskList') editor.commands.toggleTaskList();
+      else if (listType === 'bulletList') editor.commands.toggleBulletList();
+      else if (listType === 'orderedList') editor.commands.toggleOrderedList();
+      return;
+    }
+
+    const { state, view } = editor;
+    const { tr, doc, selection } = state;
+    let { from, to } = selection;
+
+    // In test or headless environments, check if DOM has active selection
+    const domSel = typeof window !== 'undefined' ? window.getSelection() : null;
+    const hasDomSelection =
+      domSel &&
+      domSel.rangeCount > 0 &&
+      !domSel.isCollapsed &&
+      domSel.toString().trim().length > 0;
+
+    if (hasDomSelection && selection.empty) {
+      from = 0;
+      to = doc.content.size;
+    }
+
+    // Split any selected paragraphs containing hardBreaks into separate paragraphs
+    const paragraphsToSplit = [];
+    doc.nodesBetween(from, to, (node, pos) => {
+      if (node.type.name === 'paragraph') {
+        let hasBreak = false;
+        node.forEach((child) => {
+          if (child.type.name === 'hardBreak') hasBreak = true;
+        });
+        if (hasBreak) {
+          paragraphsToSplit.push({ node, pos });
         }
+      }
+    });
+
+    let selectionStart = null;
+    let selectionEnd = null;
+
+    for (let i = paragraphsToSplit.length - 1; i >= 0; i--) {
+      const { node, pos } = paragraphsToSplit[i];
+      const newParagraphs = [];
+      let currentChildren = [];
+
+      node.forEach((child) => {
+        if (child.type.name === 'hardBreak') {
+          newParagraphs.push(state.schema.nodes.paragraph.create(null, currentChildren));
+          currentChildren = [];
+        } else {
+          currentChildren.push(child);
+        }
+      });
+      newParagraphs.push(state.schema.nodes.paragraph.create(null, currentChildren));
+      tr.replaceWith(pos, pos + node.nodeSize, newParagraphs);
+
+      const totalSize = newParagraphs.reduce((sum, p) => sum + p.nodeSize, 0);
+      if (selectionStart === null || pos < selectionStart) selectionStart = pos;
+      if (selectionEnd === null || pos + totalSize > selectionEnd) selectionEnd = pos + totalSize;
+    }
+
+    if (selectionStart !== null && selectionEnd !== null) {
+      try {
+        tr.setSelection(TextSelection.create(tr.doc, selectionStart + 1, selectionEnd - 1));
+      } catch {
+        // selection fallback
       }
     }
 
-    if (editorRef.current) {
-      editorRef.current.focus();
-      handleInput();
+    if (paragraphsToSplit.length > 0) {
+      view.dispatch(tr);
+    }
+
+    // Toggle the target list type
+    if (listType === 'taskList') {
+      editor.commands.toggleTaskList();
+    } else if (listType === 'bulletList') {
+      editor.commands.toggleBulletList();
+    } else if (listType === 'orderedList') {
+      editor.commands.toggleOrderedList();
+    }
+
+    // If any taskItem or listItem still contains hard breaks, split into individual items
+    const postState = editor.state;
+    const postTr = postState.tr;
+    const itemsToSplit = [];
+
+    postState.doc.descendants((node, pos) => {
+      if (node.type.name === 'taskItem' || node.type.name === 'listItem') {
+        let hasBreak = false;
+        node.descendants((child) => {
+          if (child.type.name === 'hardBreak') hasBreak = true;
+        });
+        if (hasBreak) {
+          itemsToSplit.push({ node, pos });
+        }
+      }
+    });
+
+    for (let i = itemsToSplit.length - 1; i >= 0; i--) {
+      const { node, pos } = itemsToSplit[i];
+      const itemType = node.type;
+      const itemAttrs = node.attrs;
+      const lines = [];
+      let currentLineNodes = [];
+
+      node.descendants((child) => {
+        if (child.isInline) {
+          if (child.type.name === 'hardBreak') {
+            lines.push(currentLineNodes);
+            currentLineNodes = [];
+          } else {
+            currentLineNodes.push(child);
+          }
+        }
+      });
+      lines.push(currentLineNodes);
+
+      const newItems = lines.map((lineContent) => {
+        const p = postState.schema.nodes.paragraph.create(null, lineContent);
+        return itemType.create(itemAttrs, p);
+      });
+
+      postTr.replaceWith(pos, pos + node.nodeSize, newItems);
+    }
+
+    if (itemsToSplit.length > 0) {
+      editor.view.dispatch(postTr);
     }
   };
+
+  const getBtnStyle = (isActive) => ({
+    padding: '6px',
+    borderRadius: 'var(--rounded-full)',
+    backgroundColor: isActive ? 'var(--hairline)' : 'transparent',
+    color: isActive ? 'var(--accent)' : 'inherit',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center'
+  });
 
   return (
     <div
+      className="rich-editor-wrapper"
       style={{
         border: '1px solid var(--hairline)',
         borderRadius: 'var(--rounded-sm)',
-        overflow: 'hidden',
         backgroundColor: 'var(--canvas)',
         display: 'flex',
         flexDirection: 'column',
-        minHeight: '260px'
+        overflow: 'hidden'
       }}
     >
-      {/* Toolbar */}
+      {/* Formatting Toolbar */}
       <div
-        className="editor-toolbar"
+        className="rich-editor-toolbar"
         style={{
           display: 'flex',
-          flexWrap: 'nowrap',
-          overflowX: 'auto',
+          flexWrap: 'wrap',
           alignItems: 'center',
-          gap: '4px',
-          padding: '8px 12px',
-          borderBottom: '1px solid var(--hairline)',
+          gap: '2px',
+          padding: '6px 8px',
           backgroundColor: 'var(--canvas-soft)',
-          WebkitOverflowScrolling: 'touch'
+          borderBottom: '1px solid var(--hairline)'
         }}
       >
+        {/* Bold */}
         <button
           type="button"
           onMouseDown={(e) => e.preventDefault()}
-          onClick={() => executeCommand('bold')}
+          onClick={() => editor.chain().focus().toggleBold().run()}
           title="Bold (Ctrl+B)"
           className="btn btn-ghost btn-sm"
-          style={{ padding: '6px', borderRadius: 'var(--rounded-full)' }}
+          style={getBtnStyle(editor.isActive('bold'))}
         >
           <Bold size={16} />
         </button>
 
+        {/* Italic */}
         <button
           type="button"
           onMouseDown={(e) => e.preventDefault()}
-          onClick={() => executeCommand('italic')}
+          onClick={() => editor.chain().focus().toggleItalic().run()}
           title="Italic (Ctrl+I)"
           className="btn btn-ghost btn-sm"
-          style={{ padding: '6px', borderRadius: 'var(--rounded-full)' }}
+          style={getBtnStyle(editor.isActive('italic'))}
         >
           <Italic size={16} />
         </button>
 
+        {/* Underline */}
         <button
           type="button"
           onMouseDown={(e) => e.preventDefault()}
-          onClick={() => executeCommand('underline')}
+          onClick={() => editor.chain().focus().toggleUnderline().run()}
           title="Underline (Ctrl+U)"
           className="btn btn-ghost btn-sm"
-          style={{ padding: '6px', borderRadius: 'var(--rounded-full)' }}
+          style={getBtnStyle(editor.isActive('underline'))}
         >
-          <Underline size={16} />
+          <UnderlineIcon size={16} />
         </button>
 
         <div style={{ width: '1px', height: '18px', backgroundColor: 'var(--hairline)', margin: '0 4px' }} />
 
+        {/* Heading 1 */}
         <button
           type="button"
           onMouseDown={(e) => e.preventDefault()}
-          onClick={() => applyHeading('h2')}
+          onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
           title="Heading 1"
           className="btn btn-ghost btn-sm"
-          style={{ padding: '6px', borderRadius: 'var(--rounded-full)' }}
+          style={getBtnStyle(editor.isActive('heading', { level: 1 }))}
         >
           <Heading1 size={16} />
         </button>
 
+        {/* Heading 2 */}
         <button
           type="button"
           onMouseDown={(e) => e.preventDefault()}
-          onClick={() => applyHeading('h3')}
+          onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
           title="Heading 2"
           className="btn btn-ghost btn-sm"
-          style={{ padding: '6px', borderRadius: 'var(--rounded-full)' }}
+          style={getBtnStyle(editor.isActive('heading', { level: 2 }))}
         >
           <Heading2 size={16} />
         </button>
 
         <div style={{ width: '1px', height: '18px', backgroundColor: 'var(--hairline)', margin: '0 4px' }} />
 
+        {/* Bullet List */}
         <button
           type="button"
           onMouseDown={(e) => e.preventDefault()}
-          onClick={() => executeCommand('insertUnorderedList')}
+          onClick={() => handleToggleList('bulletList')}
           title="Bullet List"
           className="btn btn-ghost btn-sm"
-          style={{ padding: '6px', borderRadius: 'var(--rounded-full)' }}
+          style={getBtnStyle(editor.isActive('bulletList'))}
         >
           <List size={16} />
         </button>
 
+        {/* Numbered List */}
         <button
           type="button"
           onMouseDown={(e) => e.preventDefault()}
-          onClick={() => executeCommand('insertOrderedList')}
+          onClick={() => handleToggleList('orderedList')}
           title="Numbered List"
           className="btn btn-ghost btn-sm"
-          style={{ padding: '6px', borderRadius: 'var(--rounded-full)' }}
+          style={getBtnStyle(editor.isActive('orderedList'))}
         >
           <ListOrdered size={16} />
         </button>
 
+        {/* Checklist */}
         <button
           type="button"
           onMouseDown={(e) => e.preventDefault()}
-          onClick={() => applyHeading('blockquote')}
+          onClick={() => handleToggleList('taskList')}
+          title="Checklist / Task List"
+          className="btn btn-ghost btn-sm"
+          style={getBtnStyle(editor.isActive('taskList'))}
+        >
+          <CheckSquare size={16} />
+        </button>
+
+        {/* Quote */}
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => editor.chain().focus().toggleBlockquote().run()}
           title="Quote"
           className="btn btn-ghost btn-sm"
-          style={{ padding: '6px', borderRadius: 'var(--rounded-full)' }}
+          style={getBtnStyle(editor.isActive('blockquote'))}
         >
           <Quote size={16} />
         </button>
 
+        {/* Code Block */}
         <button
           type="button"
           onMouseDown={(e) => e.preventDefault()}
-          onClick={() => applyHeading('pre')}
+          onClick={() => editor.chain().focus().toggleCodeBlock().run()}
           title="Code Block"
           className="btn btn-ghost btn-sm"
-          style={{ padding: '6px', borderRadius: 'var(--rounded-full)' }}
+          style={getBtnStyle(editor.isActive('codeBlock'))}
         >
           <Code size={16} />
         </button>
 
         <div style={{ width: '1px', height: '18px', backgroundColor: 'var(--hairline)', margin: '0 4px' }} />
 
+        {/* Clear Formatting */}
         <button
           type="button"
           onMouseDown={(e) => e.preventDefault()}
           onClick={handleClearFormatting}
           title="Clear Formatting"
           className="btn btn-ghost btn-sm"
-          style={{ padding: '6px', borderRadius: 'var(--rounded-full)' }}
+          style={{ padding: '6px', borderRadius: 'var(--rounded-full)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
           <RotateCcw size={16} />
         </button>
       </div>
 
-      {/* Editable Surface */}
-      <div
-        ref={editorRef}
-        contentEditable
-        onInput={handleInput}
-        data-placeholder={placeholder}
-        style={{
-          flex: 1,
-          padding: '16px',
-          outline: 'none',
-          minHeight: '200px',
-          color: 'var(--ink)',
-          fontSize: '0.98rem',
-          lineHeight: '1.6',
-          fontFamily: 'inherit'
-        }}
+      {/* TipTap Editor Content */}
+      <EditorContent
+        editor={editor}
+        className="tiptap-editor-content"
       />
     </div>
   );

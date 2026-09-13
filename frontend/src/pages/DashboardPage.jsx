@@ -4,6 +4,7 @@ import { useToast } from '../context/useToast';
 import { notesApi } from '../services/api';
 import { NoteCard } from '../components/notes/NoteCard';
 import { NoteEditorModal } from '../components/notes/NoteEditorModal';
+import { markdownToHtml, htmlToMarkdown } from '../utils/markdownUtils';
 import {
   Plus,
   Search,
@@ -12,6 +13,7 @@ import {
   Pin,
   FileText,
   FileJson,
+  FileCode2,
   ChevronDown,
   Folder,
   RefreshCw,
@@ -181,11 +183,17 @@ export const DashboardPage = () => {
     setEditorOpen(true);
   };
 
+  const editingNoteRef = useRef(editingNote);
+  useEffect(() => {
+    editingNoteRef.current = editingNote;
+  }, [editingNote]);
+
   // Save note (create or update)
-  const handleSaveNote = async (noteData) => {
+  const handleSaveNote = React.useCallback(async (noteData) => {
     try {
-      if (editingNote) {
-        const id = editingNote.id || editingNote._id;
+      const currentNote = editingNoteRef.current;
+      if (currentNote) {
+        const id = currentNote.id || currentNote._id;
         await notesApi.update(id, noteData);
         toast.success('Note updated successfully.');
       } else {
@@ -197,7 +205,29 @@ export const DashboardPage = () => {
       toast.error(err.message || 'Failed to save note');
       throw err;
     }
-  };
+  }, [fetchNotes, toast]);
+
+  // Silent auto-save for existing notes
+  const handleAutoSave = React.useCallback(async (noteData) => {
+    const currentNote = editingNoteRef.current;
+    if (!currentNote) return;
+    const id = currentNote.id || currentNote._id;
+    try {
+      await notesApi.update(id, noteData);
+      setNotes((prev) =>
+        prev.map((n) => ((n.id || n._id) === id ? { ...n, ...noteData } : n))
+      );
+    } catch {
+      // Background auto-save fail silently without interrupting user
+    }
+  }, []);
+
+  // Dynamically compute all unique categories from notes + defaults
+  const allCategories = React.useMemo(() => {
+    const fromNotes = notes.map((n) => n.category).filter(Boolean);
+    const set = new Set([...CATEGORIES, ...fromNotes]);
+    return Array.from(set);
+  }, [notes]);
 
   // Request note deletion (open confirmation modal)
   const handleDeleteClick = (note) => {
@@ -278,7 +308,34 @@ export const DashboardPage = () => {
 
       const dateStr = new Date().toISOString().slice(0, 10);
 
-      if (format === 'txt') {
+      if (format === 'md') {
+        let mdContent = `# NOTIONFLOW NOTES EXPORT\n> Generated on: ${new Date().toLocaleString()} • Total Notes: ${notesList.length}\n\n---\n\n`;
+
+        notesList.forEach((n, idx) => {
+          const title = n.title || `Note ${idx + 1}`;
+          const category = n.category || 'General';
+          const pinned = (n.is_pinned || n.isPinned) ? '📌 Pinned' : 'Unpinned';
+          const date = n.created_at ? new Date(n.created_at).toLocaleDateString() : 'N/A';
+          const mdBody = htmlToMarkdown(n.content);
+
+          mdContent += `## ${title}\n`;
+          mdContent += `*Category: \`${category}\` | Date: ${date} | Status: ${pinned}*\n\n`;
+          mdContent += `${mdBody}\n\n`;
+          mdContent += `---\n\n`;
+        });
+
+        const blob = new Blob([mdContent], { type: 'text/markdown;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const downloadAnchor = document.createElement('a');
+        downloadAnchor.setAttribute('href', url);
+        downloadAnchor.setAttribute('download', `notionflow_notes_export_${dateStr}.md`);
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+        downloadAnchor.remove();
+        URL.revokeObjectURL(url);
+
+        toast.success(`Exported ${notesList.length} note(s) as Markdown (.md).`);
+      } else if (format === 'txt') {
         let txtContent = `NOTIONFLOW NOTES EXPORT\nGenerated on: ${new Date().toLocaleString()}\nTotal Notes: ${notesList.length}\n`;
         txtContent += '='.repeat(60) + '\n\n';
 
@@ -391,13 +448,11 @@ export const DashboardPage = () => {
               }
 
               if (title || contentLines.length > 0) {
-                const formattedHtml = contentLines
-                  .map((l) => `<p>${l ? l.replace(/</g, '&lt;').replace(/>/g, '&gt;') : '&nbsp;'}</p>`)
-                  .join('');
+                const formattedHtml = markdownToHtml(contentLines.join('\n'));
                 notesToImport.push({
                   title: title || 'Imported Text Note',
                   category: category || 'General',
-                  content: formattedHtml || '<p></p>',
+                  content: formattedHtml,
                   isPinned: false
                 });
               }
@@ -406,10 +461,7 @@ export const DashboardPage = () => {
 
           if (notesToImport.length === 0) {
             const cleanTitle = fileName.replace(/\.(txt|md)$/i, '').trim() || 'Imported Note';
-            const formattedHtml = rawContent
-              .split('\n')
-              .map((line) => `<p>${line.trim() ? line.replace(/</g, '&lt;').replace(/>/g, '&gt;') : '&nbsp;'}</p>`)
-              .join('');
+            const formattedHtml = markdownToHtml(rawContent);
 
             notesToImport.push({
               title: cleanTitle,
@@ -633,6 +685,28 @@ export const DashboardPage = () => {
                   type="button"
                   onClick={() => {
                     setExportMenuOpen(false);
+                    handleExportNotes('md');
+                  }}
+                  className="btn btn-ghost btn-sm"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    width: '100%',
+                    justifyContent: 'flex-start',
+                    borderRadius: 'var(--rounded-xs)',
+                    padding: '8px 12px',
+                    fontSize: '0.86rem'
+                  }}
+                >
+                  <FileCode2 size={15} style={{ color: 'var(--primary)' }} />
+                  <span>Export as Markdown (.md)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExportMenuOpen(false);
                     handleExportNotes('txt');
                   }}
                   className="btn btn-ghost btn-sm"
@@ -722,7 +796,7 @@ export const DashboardPage = () => {
 
         {/* Category Pills */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
-          {CATEGORIES.map((cat) => {
+          {allCategories.map((cat) => {
             const isActive = selectedCategory === cat;
             return (
               <button
@@ -850,6 +924,7 @@ export const DashboardPage = () => {
                     onEdit={handleEditNote}
                     onDelete={() => handleDeleteClick(note)}
                     onTogglePin={handleTogglePin}
+                    searchQuery={searchQuery}
                   />
                 ))}
               </div>
@@ -889,6 +964,7 @@ export const DashboardPage = () => {
                     onEdit={handleEditNote}
                     onDelete={() => handleDeleteClick(note)}
                     onTogglePin={handleTogglePin}
+                    searchQuery={searchQuery}
                   />
                 ))}
               </div>
@@ -901,8 +977,11 @@ export const DashboardPage = () => {
       <NoteEditorModal
         isOpen={editorOpen}
         noteToEdit={editingNote}
+        defaultCategory={selectedCategory && selectedCategory !== 'All' ? selectedCategory : 'General'}
         onClose={() => setEditorOpen(false)}
         onSave={handleSaveNote}
+        onAutoSave={handleAutoSave}
+        existingCategories={allCategories.filter((c) => c !== 'All')}
       />
 
       {/* Delete Confirmation Modal */}

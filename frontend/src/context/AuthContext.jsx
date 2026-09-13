@@ -79,6 +79,18 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const deleteAccount = async (password) => {
+    if (!password) {
+      throw new Error('Password is required to confirm account deletion.');
+    }
+    const res = await authApi.deleteAccount(password);
+    localStorage.removeItem('notionflow_token');
+    setUser(null);
+    setProfileModalOpen(false);
+    toast.success(res.message || 'Your account and all associated notes have been permanently deleted.');
+    return res;
+  };
+
   const openAuthModal = (mode = 'signup') => {
     setAuthModalMode(mode);
     setAuthModalOpen(true);
@@ -106,6 +118,7 @@ export const AuthProvider = ({ children }) => {
         signup,
         logout,
         updateProfile,
+        deleteAccount,
         authModalOpen,
         authModalMode,
         setAuthModalMode,

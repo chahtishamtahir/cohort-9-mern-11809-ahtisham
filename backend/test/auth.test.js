@@ -5,6 +5,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const app = require('../src/server');
 const User = require('../src/models/User');
+const Note = require('../src/models/Note');
 
 describe('Authentication API (MERN with JavaScript)', () => {
   afterEach(() => {
@@ -262,6 +263,89 @@ describe('Authentication API (MERN with JavaScript)', () => {
       expect(res.body).to.have.property('success', true);
       expect(res.body.user.name).to.equal('Updated Name');
       expect(mockUser.save.calledOnce).to.be.true;
+    });
+  });
+
+  describe('DELETE /api/auth/account', () => {
+    const fakeToken = jwt.sign(
+      { id: '507f1f77bcf86cd799439011', email: 'delete_me@example.com' },
+      process.env.JWT_SECRET || 'super_secret_jwt_key_notes_app_2026'
+    );
+
+    function stubFindById(user) {
+      return sinon.stub(User, 'findById').callsFake(() => {
+        const query = Promise.resolve(user);
+        query.select = sinon.stub().resolves(user);
+        return query;
+      });
+    }
+
+    it('should return 401 if no authorization token provided', async () => {
+      const res = await request(app)
+        .delete('/api/auth/account')
+        .send({ password: 'Password123!' });
+
+      expect(res.status).to.equal(401);
+      expect(res.body).to.have.property('success', false);
+    });
+
+    it('should return 400 if password is not provided in body', async () => {
+      stubFindById({
+        _id: '507f1f77bcf86cd799439011',
+        name: 'Delete User',
+        email: 'delete_me@example.com'
+      });
+
+      const res = await request(app)
+        .delete('/api/auth/account')
+        .set('Authorization', `Bearer ${fakeToken}`)
+        .send({});
+
+      expect(res.status).to.equal(400);
+      expect(res.body).to.have.property('success', false);
+      expect(res.body.message).to.include('Password is required');
+    });
+
+    it('should return 400 if password is incorrect', async () => {
+      stubFindById({
+        _id: '507f1f77bcf86cd799439011',
+        name: 'Delete User',
+        email: 'delete_me@example.com',
+        password: '$2a$10$hashedPassword'
+      });
+      sinon.stub(bcrypt, 'compare').resolves(false);
+
+      const res = await request(app)
+        .delete('/api/auth/account')
+        .set('Authorization', `Bearer ${fakeToken}`)
+        .send({ password: 'wrongPassword' });
+
+      expect(res.status).to.equal(400);
+      expect(res.body).to.have.property('success', false);
+      expect(res.body.message).to.include('Incorrect password');
+    });
+
+    it('should successfully delete user account and cascade delete notes', async () => {
+      stubFindById({
+        _id: '507f1f77bcf86cd799439011',
+        name: 'Delete User',
+        email: 'delete_me@example.com',
+        password: '$2a$10$hashedPassword'
+      });
+      sinon.stub(bcrypt, 'compare').resolves(true);
+      const deleteNotesStub = sinon.stub(Note, 'deleteMany').resolves({ deletedCount: 5 });
+      const deleteUserStub = sinon.stub(User, 'findByIdAndDelete').resolves({ _id: '507f1f77bcf86cd799439011' });
+
+      const res = await request(app)
+        .delete('/api/auth/account')
+        .set('Authorization', `Bearer ${fakeToken}`)
+        .send({ password: 'correctPassword' });
+
+      expect(res.status).to.equal(200);
+      expect(res.body).to.have.property('success', true);
+      expect(res.body.message).to.include('permanently deleted');
+      expect(deleteNotesStub.calledOnce).to.be.true;
+      expect(deleteUserStub.calledOnce).to.be.true;
     });
   });
 });

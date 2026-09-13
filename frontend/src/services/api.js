@@ -56,6 +56,12 @@ export const authApi = {
     request('/auth/profile', {
       method: 'PUT',
       body: JSON.stringify(profileData)
+    }),
+
+  deleteAccount: (password) =>
+    request('/auth/account', {
+      method: 'DELETE',
+      body: JSON.stringify({ password })
     })
 };
 

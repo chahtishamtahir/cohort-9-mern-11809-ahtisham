@@ -33,9 +33,18 @@ export const Navbar = ({ theme, toggleTheme }) => {
           }}
           title="NotionFlow Home"
         >
-          <div className="app-icon-squircle">
-            N
-          </div>
+          <img
+            src="/favicon.svg?v=2"
+            alt="NotionFlow Logo"
+            style={{
+              width: '34px',
+              height: '34px',
+              borderRadius: '10px',
+              boxShadow: '0 3px 10px rgba(0, 0, 0, 0.1)',
+              flexShrink: 0,
+              display: 'block'
+            }}
+          />
           <span style={{ fontSize: '1.05rem', fontWeight: 750, letterSpacing: '-0.02em', color: 'var(--ink)' }}>
             NotionFlow
           </span>

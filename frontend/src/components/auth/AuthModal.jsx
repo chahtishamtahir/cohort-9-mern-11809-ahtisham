@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/useAuth';
 import { X, AlertCircle } from 'lucide-react';
 
@@ -17,6 +17,22 @@ export const AuthModal = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Clear error and password whenever the mode changes (login <-> signup)
+  useEffect(() => {
+    setError('');
+    setPassword('');
+  }, [authModalMode]);
+
+  // Reset form state when modal closes
+  useEffect(() => {
+    if (!authModalOpen) {
+      setName('');
+      setEmail('');
+      setPassword('');
+      setError('');
+    }
+  }, [authModalOpen]);
 
   if (!authModalOpen) return null;
 
@@ -66,17 +82,18 @@ export const AuthModal = () => {
 
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-          <div
-            className="app-icon-squircle"
+          <img
+            src="/favicon.svg?v=2"
+            alt="NotionFlow Logo"
             style={{
-              width: '40px',
-              height: '40px',
-              margin: '0 auto 12px',
-              fontSize: '1.1rem'
+              width: '48px',
+              height: '48px',
+              margin: '0 auto 14px',
+              borderRadius: '14px',
+              boxShadow: '0 6px 20px rgba(0, 0, 0, 0.12)',
+              display: 'block'
             }}
-          >
-            N
-          </div>
+          />
           <h2 style={{ fontSize: '1.35rem', fontWeight: 700 }}>
             {authModalMode === 'signup' ? 'Create an account.' : 'Log in to NotionFlow.'}
           </h2>

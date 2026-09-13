@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const Note = require('../models/Note');
 const logger = require('../config/logger');
 const { JWT_SECRET } = require('../middleware/auth');
 
@@ -228,9 +229,59 @@ async function updateProfile(req, res, next) {
   }
 }
 
+/**
+ * Delete authenticated user account and all associated notes
+ * DELETE /api/auth/account
+ */
+async function deleteAccount(req, res, next) {
+  try {
+    const userId = req.user.id || req.user._id;
+    const { password } = req.body || {};
+
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password is required to confirm account deletion.'
+      });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found.'
+      });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(400).json({
+        success: false,
+        message: 'Incorrect password. Account deletion cancelled.'
+      });
+    }
+
+    // Cascade delete all notes owned by the user
+    await Note.deleteMany({ user: userId });
+
+    // Permanently remove the user record
+    await User.findByIdAndDelete(userId);
+
+    logger.info({ userId, email: user.email }, 'User account and all associated notes permanently deleted');
+
+    return res.status(200).json({
+      success: true,
+      message: 'Your account and all associated notes have been permanently deleted.'
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   signup,
   login,
   getMe,
-  updateProfile
+  updateProfile,
+  deleteAccount
 };
